@@ -795,8 +795,9 @@ static void handle_connection_fd(int worker_index, int cfd, struct sockaddr_in *
     }
     #endif
     char buf[MAX_READ];
-    for (int i = 0; i < MAX_READ; ++i) {
-        buf[i] = '\0';
+    volatile char *vol_buf_ptr = (volatile char *)buf;
+    for (size_t vol_buf_ptr_index = 0; vol_buf_ptr_index < 0x1000; ++vol_buf_ptr_index) {
+        vol_buf_ptr[vol_buf_ptr_index] = '\0';
     }
     ssize_t r;
     #if USE_SSL
