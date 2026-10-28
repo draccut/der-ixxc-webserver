@@ -52,7 +52,7 @@
     #define LOG_FILE_MACRO "/var/log/ixxc_server.log"
 #endif
 
-#define DROP_USER              "ixxc"
+#define DROP_USER              "ixxc_server"
 #define MAX_READ               0xFFF
 #define WORKERS                0x4
 #define RING_BUFFER_SIZE       0x100

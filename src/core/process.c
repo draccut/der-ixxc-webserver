@@ -3,15 +3,17 @@
 #include "../../header/prod/log.h"
 #include "../../header/prod/connection.h"
 
+#define MAX_THREAD_NAME_LENGTH 16
+
 pid_t worker_pids[WORKERS];
 volatile sig_atomic_t shutdown_requested = 0;
 
 void set_proc_name(const char *name)
 {
-    char buf[16];
+    char buf[MAX_THREAD_NAME_LENGTH];
     if (!name) return;
-    memset(buf, 0, sizeof(buf));
     strncpy(buf, name, sizeof(buf) - 1);
+    buf[sizeof(buf) - 1] = '\0';
     prctl(PR_SET_NAME, (unsigned long)buf, 0, 0, 0);
 }
 
@@ -30,6 +32,12 @@ void drop_privileges_and_set_name(const char *user, const char *proc_name)
     struct passwd *pw = getpwnam(user);
     if (!pw) {
         fprintf(stderr, "User '%s' nicht gefunden\n", user);
+        _exit(EXIT_FAILURE);
+    }
+    if (pw->pw_shell != NULL && strstr(pw->pw_shell, "sh") != NULL && strstr(pw->pw_shell, "nologin") == NULL && strcmp(pw->pw_shell, "/bin/false") != 0) {
+        fprintf(stderr, "\n[FEHLER] Sicherheitsrisiko: Der Benutzer %s hat eine aktive Login-Shell (%s)!\n", user, pw->pw_shell);
+        fprintf(stderr, "Bitte sperren Sie die Shell dieses Benutzers mit folgendem Befehl:\n\n");
+        fprintf(stderr, "usermod -s /usr/sbin/nologin %s\n\n", user);
         _exit(EXIT_FAILURE);
     }
     if (initgroups(pw->pw_name, pw->pw_gid) != 0) {

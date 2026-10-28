@@ -12,7 +12,7 @@ Subsequently, it drops its root privileges and processes interrupts or signals i
 The worker processes communicate with web browsers. Having multiple workers allows the server to handle several requests 
 at the same time, making use of multiple CPU cores. Because of this, the data often stays in the shared L3 cache, which makes responses very fast. 
 Workers are not restarted automatically if they crash, to avoid undefined behavior. 
-Multiple workers are there to keep response times short. The server runs under a user account with no password and no login shell. 
+Multiple workers are there to keep response times short. The server runs under a user account with no login shell. 
 
 ### Memory Management
 
