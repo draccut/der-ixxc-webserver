@@ -1,9 +1,4 @@
-*.o
-*.obj
+build/
 
-server
-generate_c_frontend_source
-html_data.c
-html_data.h
-test_constant_time
-test_ixxc
+bin/
+
