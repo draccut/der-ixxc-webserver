@@ -55,6 +55,21 @@ static void entry_vec_free(EntryVec *v)
     v->len = v->capacity = 0;
 }
 
+int contains_substring(const char *str, const char *sub)
+{
+    if (!*sub) return 1;
+    for (int i = 0; str[i] != '\0'; i++) {
+        int j = 0;
+        while (str[i + j] != '\0' && sub[j] != '\0' && str[i + j] == sub[j]) {
+            j++;
+        }
+        if (sub[j] == '\0') {
+            return 1;
+        }
+    }
+    return 0;
+}
+
 static void walk_dir_recursive(const char *dir, const char *base_fs, EntryVec *out)
 {
     DIR *d = opendir(dir);
@@ -64,7 +79,7 @@ static void walk_dir_recursive(const char *dir, const char *base_fs, EntryVec *o
     }
     struct dirent *entry;
     while ((entry = readdir(d)) != NULL) {
-        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
+        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0 || contains_substring(entry->d_name, ".git") == 1) {
             continue;
         }
         char path[PATH_MAX];
@@ -154,7 +169,7 @@ static void print_entries_formatted(const EntryVec *v)
 
 int main(int argc, char **argv)
 {
-    const char *dir = (argc > 1) ? argv[1] : "../currency-game";
+    const char *dir = (argc > 1) ? argv[1] : "../../../currency-game";
     EntryVec entries = collect_from_dir(dir);
     /* Optional: den berechneten Wert auch ausgeben */
     int max_w = calc_max_host_path_len(&entries);
