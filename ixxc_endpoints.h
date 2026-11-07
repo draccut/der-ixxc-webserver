@@ -7,14 +7,14 @@
 #include <stdint.h>
 #include <stdio.h>
 
-/**
- * Dies ist ein Webserver und so etwas wie ein Tar-Archiv in einem.
- * Kompiliert läuft es mit dem Frontend im .rodata-Segment auf jedem
- * Linux-x86-64-Kernel/CPU-Architektur.
+/*
+ * This is a web server and something like a tar archive in one.
+ * When compiled, it runs with the frontend in the .rodata segment on every
+ * Linux-x86-64 kernel/CPU architecture.
  *
- * source_file_path:  Datei, die in das Archiv kompiliert wird
- * endpoint:          Der Request (z. B. GET /) liefert die Datei aus,
- *                    die in dieser Zeile in das Binary kompiliert wurde.
+ * source_file_path:  File that is compiled into the archive
+ * endpoint:          The request (e.g. GET /) serves the file
+ *                    that was compiled into the binary on this line.
  */
 #pragma pack(push, 1)
 typedef struct {
@@ -30,7 +30,7 @@ static IXXC_Endpoint IXXC_ENDPOINTS[] = {
 };
 #else
 static IXXC_Endpoint IXXC_ENDPOINTS[] = {
-    #include "../frontends/endpoint_list.h"
+    #include "header/prod/endpoints.h"
 };
 #endif
 
@@ -39,12 +39,6 @@ static const size_t MASKU_64BITXORGATTER = 0x200;
 static const size_t CCC_CMP_MASK_LEN = 0x1000;
 static char **orig_strings = NULL;
 
-/**
- * Auch in C sollte ein klares Ownership-Modell eingehalten werden.
- * Dadurch werden bei Speichertests Memory Leaks sofort erkennbar,
- * ohne dass zeitaufwändig analysiert werden muss,
- * welcher Code für welche Speicherbereiche verantwortlich ist.
- */
 static inline void ixxc_cleanup_endpoints(void)
 {
     if (orig_strings != NULL) {
@@ -59,11 +53,6 @@ static inline void ixxc_cleanup_endpoints(void)
     }
 }
 
-/**
- * Die Ausgabe verdeutlicht, dass die Endpunkte korrekt sortiert wurden und somit
- * kein fehlerhaftes Routing entstehen kann, nur weil ein kürzeres Endpunkt-Element
- * vor einem längeren stand.
- */
 static inline void print_endpoint_list(void) 
 {
     printf("%s\n", "==============  = ENDPOINT LIST   ===================");
@@ -73,11 +62,11 @@ static inline void print_endpoint_list(void)
     printf("%s\n", "=====================================================");
 }
 
-/**
- * Hier wird dafür gesorgt, dass jeder Endpunkt die gleiche Buffergröße hat,
- * damit später der Dispatcher für jeden Endpunkt die gleiche Anzahl an
- * Maschinenzyklen benötigt und man Inhalte im Archiv-Webserver gegenüber dem
- * Internet verstecken kann.
+/*
+ * This ensures that every endpoint has the same buffer size,
+ * so that later the dispatcher needs the same number of
+ * machine cycles for each endpoint and contents in the archive web server
+ * can be hidden from the internet.
  */
 static inline void scale_up_endpoint_buffer(void)
 {
@@ -110,10 +99,10 @@ static inline void scale_up_endpoint_buffer(void)
     }
 }
 
-/**
- * MASKU_64BITXORGATTER ist die Anzahl der uint64_t = 64-Bit = 8-Byte-Blöcke.
- * CCC_CMP_MASK_LEN     ist der Wert in Bytes und nicht in 64-Bit-Blöcken.
- * Diese Werte sind wichtig für den zeitgleichen Dispatcher in der Server-Datei.
+/*
+ * MASKU_64BITXORGATTER is the number of uint64_t = 64-bit = 8-byte blocks.
+ * CCC_CMP_MASK_LEN     is the value in bytes and not in 64-bit blocks.
+ * These values are important for the constant-time dispatcher in the server file.
  */
 static inline void ixxc_init_endpoints(void) 
 {

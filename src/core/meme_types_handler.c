@@ -39,6 +39,28 @@ size_t *IXXC_Archieved_File_Sizes = NULL;
 "Server: ixxc/1.2\r\n" \
 "\r\n"
 
+#define IXXC_SERVER_HEADER_JS \
+"HTTP/1.1 200 OK\r\n" \
+"Content-Type: application/javascript; charset=utf-8\r\n" \
+"Content-Length: %zu\r\n" \
+"Connection: close\r\n" \
+"X-Content-Type-Options: nosniff\r\n" \
+"X-Frame-Options: DENY\r\n" \
+"Referrer-Policy: no-referrer\r\n" \
+"Server: ixxc/1.2\r\n" \
+"\r\n"
+
+#define IXXC_SERVER_HEADER_CSS \
+"HTTP/1.1 200 OK\r\n" \
+"Content-Type: text/css; charset=utf-8\r\n" \
+"Content-Length: %zu\r\n" \
+"Connection: close\r\n" \
+"X-Content-Type-Options: nosniff\r\n" \
+"X-Frame-Options: DENY\r\n" \
+"Referrer-Policy: no-referrer\r\n" \
+"Server: ixxc/1.2\r\n" \
+"\r\n"
+
 #define IXXC_FORBIDDEN \
 "HTTP/1.1 403 Forbidden\r\n" \
 "Content-Type: text/html; charset=utf-8\r\n" \
@@ -50,37 +72,32 @@ size_t *IXXC_Archieved_File_Sizes = NULL;
 "<h1>Forbidden</h1>"
 
 /*
- * Die Header-Makros enthalten "%zu" als Platzhalter für Content-Length.
- * sizeof( . . . ) zählt die 3 Zeichen von "%zu" mit.
- * Diese werden zur Laufzeit durch die tatsächliche Zahl ersetzt und
- * erscheinen nicht in der fertigen Ausgabe.
- * Deshalb: sizeof(Formatstring) - 3 + maximale Ziffernlänge einer uint64_t.
+ * The header macros contain "%zu" as a placeholder for Content-Length.
+ * sizeof( . . . ) counts the 3 characters of "%zu" as well.
+ * These are replaced by the actual number and
+ * do not appear in the final output.
+ * Therefore: sizeof(format string) - 3 + maximum digit length of a uint64_t.
  */
 #define MAX_UINT64_STR                    "18446744073709551615"
 #define MAX_UINT64_STR_LEN                (sizeof(MAX_UINT64_STR))
 #define IXXC_SERVER_HEADER_LEN            (sizeof(IXXC_SERVER_HEADER)           + MAX_UINT64_STR_LEN)
 #define IXXC_SERVER_HEADER_DOWNLOAD_LEN   (sizeof(IXXC_SERVER_HEADER_DOWNLOAD)  + MAX_UINT64_STR_LEN)
 #define IXXC_SERVER_HEADER_WEBP_LEN       (sizeof(IXXC_SERVER_HEADER_WEBP)      + MAX_UINT64_STR_LEN)
+#define IXXC_SERVER_HEADER_JS_LEN         (sizeof(IXXC_SERVER_HEADER_JS)        + MAX_UINT64_STR_LEN)
+#define IXXC_SERVER_HEADER_CSS_LEN        (sizeof(IXXC_SERVER_HEADER_CSS)       + MAX_UINT64_STR_LEN)
 #define IXXC_FORBIDDEN_LEN                (sizeof(IXXC_FORBIDDEN))
 
-/**
- * @brief MIME-/Antwort-Kategorie eines Endpoints.
- */
 typedef enum {
-    MEME_TYPE_DOWNLOAD,   /**< Binärdownload (octet-stream) */
-    MEME_TYPE_TEXT,       /**< HTML/Text-Antwort */
-    MEME_TYPE_FORBIDDEN,  /**< 403 Forbidden */
-    MEME_TYPE_WEBP,       /**< image/webp */
+    MEME_TYPE_DOWNLOAD,
+    MEME_TYPE_TEXT,
+    MEME_TYPE_FORBIDDEN,
+    MEME_TYPE_WEBP,
+    MEME_TYPE_JS,
+    MEME_TYPE_CSS,
 } Meme_type_enum_e;
 
-/**
- * @brief Prüft, ob eine Dateiendung als Download ausgeliefert werden soll.
- *
- * Erkannte Endungen: .docx, .png, .pdf, .odt, .odg.
- *
- * @param dot  Zeiger auf die Endung inklusive führendem Punkt
- *             (z. B. ".pdf"); darf nicht NULL sein.
- * @return     1 wenn Download-Typ, sonst 0.
+/*
+ * Checks if a file extension should be delivered as a download
  */
 static int is_download_meme_type(const char *dot)
 {
@@ -100,13 +117,8 @@ static int is_download_meme_type(const char *dot)
     return 0;
 }
 
-/**
- * @brief Bestimmt den Content-/Antwort-Typ eines Endpoints anhand der Dateiendung.
- *
- * @param index_endpoint  Index in IXXC_ENDPOINTS; IXXC_ENDPOINTS_COUNT
- *                        bedeutet „unbekannt"  ->  FORBIDDEN.
- * @return                MEME_TYPE_DOWNLOAD, MEME_TYPE_WEBP,
- *                        MEME_TYPE_TEXT oder MEME_TYPE_FORBIDDEN.
+/*
+ * Determines the content/response type of an endpoint based on the file extension.
  */
 static Meme_type_enum_e detect_meme_type(size_t index_endpoint)
 {
@@ -124,6 +136,12 @@ static Meme_type_enum_e detect_meme_type(size_t index_endpoint)
         if (strcmp(dot, ".webp") == 0) {
             return MEME_TYPE_WEBP;
         }
+        if (strcmp(dot, ".js") == 0) {
+            return MEME_TYPE_JS;
+        }
+        if (strcmp(dot, ".css") == 0) {
+            return MEME_TYPE_CSS;
+        }
         if (is_download_meme_type(dot)) {
             return MEME_TYPE_DOWNLOAD;
         }
@@ -131,17 +149,16 @@ static Meme_type_enum_e detect_meme_type(size_t index_endpoint)
     return MEME_TYPE_TEXT;
 }
 
-/**
- * @brief Erzeugt den passenden HTTP-Header (und ggf. den 403-Body)
- *        für den angegebenen Endpoint.
+/*
+ * Generates the appropriate HTTP header and, if applicable, the 403 body for the given endpoint.
  *
- * Allokiert *header auf dem Heap. Der Caller muss *header mit free() freigeben.
+ * Allocates *header on the heap. Caller must free *header with free().
  *
- * @param[out] header  Zielzeiger für den allokierten Header-String
- * @param[out] phlen   Länge des geschriebenen Header-Strings (ohne '\0')
- * @param[in]  idx     Endpoint-Index (oder IXXC_ENDPOINTS_COUNT für 403)
- * @param[in]  len     Content-Length für echte Endpoints
- * @return             0 bei Erfolg, -1 bei Fehler (u. a. OOM, snprintf)
+ * @param[out] header  Target pointer for the allocated header string
+ * @param[out] phlen   Length of the written header string (without '\0')
+ * @param[in]  idx     Endpoint index (or IXXC_ENDPOINTS_COUNT for 403)
+ * @param[in]  len     Content-Length for real endpoints
+ * @return             0 on success, -1 on error
  */
 static int get_header_and_meme(char **header, size_t *phlen, size_t idx, size_t len)
 {
@@ -185,6 +202,22 @@ static int get_header_and_meme(char **header, size_t *phlen, size_t idx, size_t 
             }
             written = snprintf(*header, alloc, IXXC_SERVER_HEADER_WEBP, len);
             break;
+        case MEME_TYPE_JS:
+            alloc = IXXC_SERVER_HEADER_JS_LEN + 1;
+            *header = malloc(alloc);
+            if (!*header) {
+                goto error;
+            }
+            written = snprintf(*header, alloc, IXXC_SERVER_HEADER_JS, len);
+            break;
+        case MEME_TYPE_CSS:
+            alloc = IXXC_SERVER_HEADER_CSS_LEN + 1;
+            *header = malloc(alloc);
+            if (!*header) {
+                goto error;
+            }
+            written = snprintf(*header, alloc, IXXC_SERVER_HEADER_CSS, len);
+            break;
         default:
             goto error;
     }
@@ -199,18 +232,7 @@ static int get_header_and_meme(char **header, size_t *phlen, size_t idx, size_t 
     return -1;
 }
 
-/**
- * @brief Baut für jeden Endpoint den HTTP-Header und speichert Länge.
- *
- * Bei Fehler an einem Index bleiben header[i] und Längen unvollständig;
- * bereits allokierte Einträge werden nicht freigegeben (Caller/Shutdown).
- *
- * @param[out] http_header          Array[IXXC_ENDPOINTS_COUNT] von char*
- * @param[out] http_header_lengths  Array[IXXC_ENDPOINTS_COUNT] von size_t
- */
-void pub_detect_meme_type(char **http_header,
-                          size_t *http_header_lengths,
-                          const size_t *file_sizes)
+void pub_detect_meme_type(char **http_header, size_t *http_header_lengths, const size_t *file_sizes)
 {
     size_t index_endpoint;
     if (!http_header || !http_header_lengths || !file_sizes) {

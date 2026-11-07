@@ -6,6 +6,7 @@ SRC_DIR      := src/core
 HDR_DIR      := header/prod
 BUILD_DIR    := build
 GEN_DIR      := $(BUILD_DIR)/generated
+EXAMPLE      := $(BUILD_DIR)/example
 BIN_DIR      := bin
 
 CC           := gcc
@@ -32,46 +33,69 @@ LDFLAGS      := $(LDFLAGS_SEC)
 
 TOOL_CFLAGS  := -O2 -Wall -Wextra -std=c11 -I. -I$(HDR_DIR)
 
-# ---------------------------------------------------------------------------
 HTML_DATA_C   := $(GEN_DIR)/html_data.c
 HTML_DATA_H   := $(GEN_DIR)/html_data.h
 HEADER_DATA_C := $(GEN_DIR)/header_data.c
 HEADER_DATA_H := $(GEN_DIR)/header_data.h
-GENERATED     := $(HTML_DATA_C) $(HTML_DATA_H)
+GENERATED     := $(HTML_DATA_C) $(HTML_DATA_H) $(HEADER_DATA_C) $(HEADER_DATA_H)
+
+PATH_CRAWLER_SRC   := $(SRC_DIR)/path_crawler.c
+PATH_CRAWLER_BIN   := $(BIN_DIR)/path_crawler
 
 GENERATOR_SRC := $(SRC_DIR)/generate_c_frontend_source.c
 GENERATOR     := $(BIN_DIR)/generate_c_frontend_source
 
 # ---------------------------------------------------------------------------
-# Explizite Object-Liste (damit nichts vergessen wird)
+# Explicit object list (so nothing is forgotten)
 # ---------------------------------------------------------------------------
 SERVER_OBJS := \
-	$(BUILD_DIR)/server.o \
-	$(BUILD_DIR)/log.o \
-	$(BUILD_DIR)/process.o \
-	$(BUILD_DIR)/security.o \
-	$(BUILD_DIR)/connection.o \
-	$(BUILD_DIR)/socket.o \
-	$(BUILD_DIR)/header_data.o \
-	$(BUILD_DIR)/html_data.o
+        $(BUILD_DIR)/server.o \
+        $(BUILD_DIR)/log.o \
+        $(BUILD_DIR)/process.o \
+        $(BUILD_DIR)/security.o \
+        $(BUILD_DIR)/connection.o \
+        $(BUILD_DIR)/socket.o \
+        $(BUILD_DIR)/header_data.o \
+        $(BUILD_DIR)/html_data.o
 
 SERVER_BIN   := $(BIN_DIR)/ixxc_server
 
 # ---------------------------------------------------------------------------
-.PHONY: all clean generate dirs
+.PHONY: all clean dirs generate build run_path_crawler
 
-all: dirs generate $(SERVER_BIN)
+# ---------------------------------------------------------------------------
+# Example build step (build and run src/core/example.c)
+# ---------------------------------------------------------------------------
+example: $(BIN_DIR)/example
+	@echo ">>> [EXAMPLE] Creating output directories..."
+	@mkdir -p $(EXAMPLE) $(EXAMPLE)/crawling
+	@echo ">>> [EXAMPLE] Running generator..."
+	@$(BIN_DIR)/example
+	@echo ">>> [EXAMPLE] Finished."
+
+$(BIN_DIR)/example: $(SRC_DIR)/example.c | dirs
+	@echo ">>> [EXAMPLE] Compiling..."
+	$(CC) $(CFLAGS) -o $@ $<
+
+# ---------------------------------------------------------------------------
+# Build rules
+# ---------------------------------------------------------------------------
+build: $(SERVER_BIN)
+
+all: dirs run_path_crawler $(GENERATED) $(SERVER_BIN)
+
+generate: run_path_crawler $(GENERATED)
 
 dirs:
 	@mkdir -p $(BUILD_DIR) $(BIN_DIR) $(GEN_DIR)
 
-# ---------------------------------------------------------------------------
-# Generator
-# ---------------------------------------------------------------------------
-generate: $(GENERATED)
+$(PATH_CRAWLER_BIN): $(PATH_CRAWLER_SRC) | dirs
+	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
 
-$(GENERATOR): $(GENERATOR_SRC) ixxc_endpoints.h
-	$(CC) $(TOOL_CFLAGS) $< $(SRC_DIR)/meme_types_handler.c -o $@
+run_path_crawler: $(PATH_CRAWLER_BIN)
+	@echo ">>> [PATH_CRAWLER] starte $(PATH_CRAWLER_BIN)"
+	$(PATH_CRAWLER_BIN)
+	@echo ">>> [PATH_CRAWLER] fertig"
 
 $(GENERATED): $(GENERATOR) | dirs
 	@echo "[GEN] html_data ..."
@@ -79,14 +103,17 @@ $(GENERATED): $(GENERATOR) | dirs
 	@touch $(GENERATED)
 	@echo "[OK] $(GENERATED)"
 
+$(GENERATOR): $(GENERATOR_SRC) ixxc_endpoints.h | dirs
+	$(CC) $(TOOL_CFLAGS) $< $(SRC_DIR)/meme_types_handler.c -o $@
+
 # ---------------------------------------------------------------------------
-# Server
+# Server depends on generated files for frontend
+# so after path_crawler + generate
 # ---------------------------------------------------------------------------
 $(SERVER_BIN): $(SERVER_OBJS)
 	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS)
 	@echo "[OK] Server: $@"
 
-# Einzelne Regeln für jede Datei (sehr robust)
 $(BUILD_DIR)/server.o:              $(SRC_DIR)/server.c               $(GENERATED) | dirs
 	$(CC) $(CFLAGS) -c $< -o $@
 
@@ -108,11 +135,13 @@ $(BUILD_DIR)/socket.o:              $(SRC_DIR)/socket.c               $(GENERATE
 $(BUILD_DIR)/html_data.o:           $(HTML_DATA_C) $(HTML_DATA_H)     | dirs
 	$(CC) $(CFLAGS) -c $(HTML_DATA_C) -o $@
 
-$(BUILD_DIR)/header_data.o:           $(HEADER_DATA_C) $(HEADER_DATA_H) | dirs
+$(BUILD_DIR)/header_data.o:         $(HEADER_DATA_C) $(HEADER_DATA_H) | dirs
 	$(CC) $(CFLAGS) -c $(HEADER_DATA_C) -o $@
+
 # ---------------------------------------------------------------------------
 clean:
-	rm -rf $(BUILD_DIR) $(BIN_DIR) $(GENERATOR)
+	rm -rf $(BUILD_DIR) $(BIN_DIR)
+	rm my_server_access.log
 	@echo "[OK] clean"
 
 # -----------------------------------------------------------------------------
@@ -126,27 +155,21 @@ TEST_RING_BUF   := $(BIN_DIR)/test_ring_buffer
 TEST_LOG_BIN    := $(BIN_DIR)/test_log_file
 TEST_CFLAGS     := $(TOOL_CFLAGS) -DUSE_TEST_ENDPOINTS
 
-# 0. test_ring_buffer
 $(TEST_RING_BUF): $(TEST_DIR)/test_ring_buffer.c | dirs
 	$(CC) $(TOOL_CFLAGS) $< -o $@ -lcurl -lpthread
 
-# 1. test_constant_time: security.c + test_constant_time.c
 $(TEST_CONST_BIN): $(TEST_DIR)/test_constant_time.c $(SRC_DIR)/security.c | dirs
 	$(CC) $(TEST_CFLAGS) $^ -o $@
 
-# 2. test_ixxc
 $(TEST_BIN): $(TEST_DIR)/test_ixxc.c | dirs
 	$(CC) $(TOOL_CFLAGS) $< -o $@ -lcurl -lpthread
 
-# 3. meme_types_handler with test flag
 $(TEST_MTH_BIN): $(TEST_DIR)/test_meme_types.c | dirs
 	$(CC) $(TEST_CFLAGS) $< -o $@
 
-# 4. test_log_file (letzter Test)
 $(TEST_LOG_BIN): $(TEST_DIR)/test_log_file.c | dirs
 	$(CC) $(TOOL_CFLAGS) $< -o $@
 
-# 5. Build and run all tests
 .PHONY: test
 test: $(TEST_CONST_BIN) $(TEST_BIN) $(TEST_MTH_BIN) $(TEST_RING_BUF) $(TEST_LOG_BIN)
 	@echo "Running ring buffer test..."
@@ -160,4 +183,3 @@ test: $(TEST_CONST_BIN) $(TEST_BIN) $(TEST_MTH_BIN) $(TEST_RING_BUF) $(TEST_LOG_
 	@echo "Running test_log_file..."
 	@$(TEST_LOG_BIN)
 	@echo "All tests finished."
-

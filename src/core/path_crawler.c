@@ -9,6 +9,14 @@
 #include <limits.h>
 #include <errno.h>
 
+#if __has_include("build/example/endpoints.h")
+    #define CRAWLING_INPUT_PATH "build/example/crawling"
+    #define CRAWLING_BASE_ENDPOINT "GET /crawling/"
+#else
+    #define CRAWLING_INPUT_PATH "../currency_game"
+    #define CRAWLING_BASE_ENDPOINT "GET /currency_game/"
+#endif
+
 typedef struct {
     char *host_path;
     char *endpoint;
@@ -55,7 +63,7 @@ static void entry_vec_free(EntryVec *v)
     v->len = v->capacity = 0;
 }
 
-int contains_substring(const char *str, const char *sub)
+static int contains_substring(const char *str, const char *sub)
 {
     if (!*sub) return 1;
     for (int i = 0; str[i] != '\0'; i++) {
@@ -103,13 +111,13 @@ static void walk_dir_recursive(const char *dir, const char *base_fs, EntryVec *o
                     rel++;
                 }
             }
-            size_t ep_len = strlen("GET /") + strlen(rel) + 1;
+            size_t ep_len = strlen(rel) + 1;
             char *endpoint = malloc(ep_len);
             if (!endpoint) {
                 free(host_path);
                 continue;
             }
-            snprintf(endpoint, ep_len, "GET /%s", rel);
+            snprintf(endpoint, ep_len, "%s", rel);
             if (entry_vec_push(out, host_path, endpoint) != 0) {
                 free(host_path);
                 free(endpoint);
@@ -136,47 +144,45 @@ static EntryVec collect_from_dir(const char *fs_path)
     return entries;
 }
 
-static int calc_max_host_path_len(const EntryVec *v)
+static void write_to_output_file(char **strings, size_t count)
 {
-    size_t max_len = 0;
-    for (size_t i = 0; i < v->len; i++) {
-        size_t len = strlen(v->data[i].host_path);
-        if (len > max_len) {
-            max_len = len;
+    const char *output_file = "build/generated/path_crawled.h";
+    FILE *fp = fopen(output_file, "w");
+    for (size_t i = 0; i < count; i++) {
+        if (strings[i] != NULL) {
+            if (fprintf(fp, "%s", strings[i]) < 0) {
+                fclose(fp);
+            }
         }
     }
-    return (int)(max_len + 5);
 }
 
-static void print_entries_formatted(const EntryVec *v)
+static void print_entries_formatted(const EntryVec *v, const char *base_url)
 {
-    if (v->len == 0) {
-        printf("/* keine Einträge */\n");
-        return;
-    }
-    int width = calc_max_host_path_len(v);
-    printf("{\n");
+    char **buf = malloc(sizeof(char *) * v->len);
     for (size_t i = 0; i < v->len; i++) {
-        printf("    {\"%s\",%*s\"%s\", %d}%s\n",
+        buf[i] = malloc(0x1000);
+        snprintf(buf[i], 0x1000, "{\"%s\", \"%s%s\", 0},\n",
                v->data[i].host_path,
-               width - (int)strlen(v->data[i].host_path), "",
-               v->data[i].endpoint,
-               v->data[i].flag,
-               (i + 1 < v->len) ? "," : "");
+               base_url,
+               v->data[i].endpoint);
     }
-    printf("};\n");
+    write_to_output_file(buf, v->len);
+    for (size_t i = 0; i < v->len; i++) {
+        free(buf[i]);
+    };
+    free(buf);
 }
 
-int main(int argc, char **argv)
+static void build_crawled_paths(const char *to_crawl, const char *base_url)
 {
-    const char *dir = (argc > 1) ? argv[1] : "../../../currency-game";
-    EntryVec entries = collect_from_dir(dir);
-    /* Optional: den berechneten Wert auch ausgeben */
-    int max_w = calc_max_host_path_len(&entries);
-    fprintf(stderr, "/* max host_path width (strlen + 5) = %d */\n\n", max_w);
-
-    print_entries_formatted(&entries);
-
+    EntryVec entries = collect_from_dir(to_crawl);
+    print_entries_formatted(&entries, base_url);
     entry_vec_free(&entries);
+}
+
+int main(void)
+{
+    build_crawled_paths(CRAWLING_INPUT_PATH, CRAWLING_BASE_ENDPOINT);
     return 0;
 }

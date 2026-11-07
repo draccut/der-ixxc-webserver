@@ -1,4 +1,20 @@
-## How the IXXC-Web Server Works
+# der-ixxc-webserver
+
+## Quickstart
+
+Build and run the example frontend in 4 steps:
+
+```bash
+nix-shell
+make example       # generate the frontend archive
+make all           # compile the server
+bin/ixxc_server    # start serving the frontend
+```
+
+**Requirements:** a C compiler (e.g., `gcc`) and `make`.
+The server will listen on its default port and serve the bundled frontend directly from memory at `127.0.0.1:8080`
+
+## How the ixxc-web-server works
 
 This small web server, written in C, makes an archive similar to a TAR file directly accessible to browsers by storing static 
 frontend files or documents within a single large binary file which contains all the data the server requires.
@@ -29,6 +45,5 @@ is to strictly separate file access from network access.
 
 Every request is copied into a fixed-size buffer, with a maximum size of one page (**0x1000** bytes).
 Before that, the page is overwritten once more with 0x0. Both empty URLs and URLs that are too long (**0x1000** bytes or more) 
-are padded or cut to the same length. The server compares this fixed-size buffer against every allowed endpoint using XOR operations over the whole block. 
-This is why the server uses low-level architecture. For some systems, the server does not use the standard C library, 
-so the assembly code remains easy to understand.
+are padded or cut to the same length. The server compares this fixed-size buffer against every allowed endpoint using XOR operations over the whole page. 
+

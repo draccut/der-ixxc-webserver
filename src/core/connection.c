@@ -126,13 +126,13 @@ void send_endpoint_plain(int fd, size_t idx)
 
 #endif
 
-/**
- * Findet die Länge des Request-Pfads (bis zum zweiten Leerzeichen).
- * Wird als input_len für den constant-time-Vergleich verwendet.
+/*
+ * Finds the length of the request path up to the second space
+ * Used as input_len for constant-time comparison.
  *
- * @param buf  Request-Puffer
- * @param len  Länge des Puffers
- * @return     Länge des Pfads oder 0 bei Fehler
+ * @param buf  Request buffer
+ * @param len  Length of the buffer
+ * @return     Length of the path or 0 on error
  */
 static size_t find_endpoint_length(const char *buf, size_t len)
 {

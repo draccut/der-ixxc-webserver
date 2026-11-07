@@ -83,12 +83,9 @@ int main(void)
 {
     pthread_t threads[NUM_THREADS];
     int tids[NUM_THREADS];
-
     printf("x table has %d requests\n", x_count);
-    printf("starting %d threads, each sends %d requests per iteration (infinite loop)\n",
-           NUM_THREADS, REQ_PER_ITER);
+    printf("starting %d threads, each sends %d requests per iteration (infinite loop)\n", NUM_THREADS, REQ_PER_ITER);
     printf("target: %s:%d\n", TARGET_IP, TARGET_PORT);
-
     for (int i = 0; i < NUM_THREADS; i++) {
         tids[i] = i;
         if (pthread_create(&threads[i], NULL, worker, &tids[i]) != 0) {
@@ -100,6 +97,5 @@ int main(void)
     for (int i = 0; i < NUM_THREADS; i++) {
         pthread_join(threads[i], NULL);
     }
-
     return 0;
 }

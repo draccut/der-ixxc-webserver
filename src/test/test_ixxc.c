@@ -1,5 +1,3 @@
-#define TEST_LOCAL_SERVER
-
 #define _POSIX_C_SOURCE 200809L
 
 #include "../../ixxc_endpoints.h"
@@ -17,41 +15,32 @@
 #define COLOR_GREEN  "\x1b[32m"
 #define COLOR_RESET  "\x1b[0m"
 
-#define DEFAULT_BUFFER_SIZE 0x8000 /* Fallback-Puffergröße, falls die lokale Dateigröße nicht ermittelt werden kann */
+#define DEFAULT_BUFFER_SIZE 0x8000 /* Fallback-Buffersize */
 
-#define MAX_FILE_SIZE 0x6400000 /* 100 MiB Harte Obergrenze pro Datei */
+#define MAX_FILE_SIZE 0x6400000 /* 100 MiB max heap size per file */
 
-/**
- * Ziel-URL des zu testenden Servers.
- * Mit -DTEST_LOCAL_SERVER wird gegen den lokalen Entwicklungs-Server getestet
- * SSL-Prüfung dann deaktiviert
- */
-#ifdef TEST_LOCAL_SERVER
 #define TARGET_URL "http://127.0.0.1:8080"
-#else
-#define TARGET_URL "https://info.ixxc.de"
-#endif
 
 struct file_buf {
     uint8_t *data;
     size_t   len;
 };
 
-struct mem_writer {     /* Ermöglicht es, die empfangenen Daten direkt in einen vorallokierten Puffer zu schreiben */
-    uint8_t *buf;       /* Zielpuffer */
-    size_t   capacity;  /* maximale Kapazität */
-    size_t   len;       /* bereits geschriebene Bytes */
-    int      overflow;  /* 1 = Puffer war zu klein */
+struct mem_writer {     /* Allows direct writing of received data into a preallocated buffer */
+    uint8_t *buf;       /* Target buffer */
+    size_t   capacity;  /* Maximum capacity */
+    size_t   len;       /* Bytes already written */
+    int      overflow;  /* 1 = buffer was too small */
 };
 
-/**
- * Extrahiert den Dateinamen Basename aus einem Pfad.
- * Beispiel: /foo/bar/index.html wird zu index.html
- * Bei leerem oder ungültigem Pfad wird index zurückgegeben.
+/*
+ * Extracts the basename (filename) from a path.
+ * Example: /foo/bar/index.html becomes index.html
+ * Returns "index" for empty or invalid paths.
  *
- * @param path    Eingabe-Pfad
- * @param out     Ausgabe-Puffer für den Dateinamen
- * @param outlen  Größe des Ausgabe-Puffers
+ * @param path    Input path
+ * @param out     Output buffer for the filename
+ * @param outlen  Size of the output buffer
  */
 static void basename_from_path(const char *path, char *out, size_t outlen)
 {
@@ -91,14 +80,14 @@ static void basename_from_path(const char *path, char *out, size_t outlen)
     }
 }
 
-/**
- * Extrahiert den Pfad-Anteil aus einem HTTP-Endpoint-String.
- * Beispiel: "GET /asm" wird zu "/asm"
- * Falls kein Leerzeichen gefunden wird, wird der gesamte String kopiert.
+/*
+ * Extracts the path part from an HTTP endpoint string.
+ * Example: "GET /endpoint" becomes "/endpoint"
+ * If no space is found, the whole string is copied.
  *
- * @param endpoint  Endpoint-String (z. B. "GET /path")
- * @param out       Ausgabe-Puffer für den Pfad
- * @param outlen    Größe des Ausgabe-Puffers
+ * @param endpoint  Endpoint string
+ * @param out       Output buffer for the path
+ * @param outlen    Size of the output buffer
  */
 static void extract_path_from_endpoint(const char *endpoint, char *out, size_t outlen)
 {
@@ -119,13 +108,13 @@ static void extract_path_from_endpoint(const char *endpoint, char *out, size_t o
     out[outlen - 1] = '\0';
 }
 
-/**
- * Lädt eine komplette Datei in den Heap.
- * Die Datei darf maximal MAX_FILE_SIZE Bytes groß sein.
+/*
+ * Loads an entire file into the heap.
+ * The file may be up to MAX_FILE_SIZE bytes.
  *
- * @param path  Pfad zur Datei
- * @param out   Wird mit Zeiger und Länge befüllt (bei Fehler data == NULL)
- * @return      1 bei Erfolg, 0 bei Fehler
+ * @param path  Path to file
+ * @param out   Will be filled with pointer and length
+ * @return      1 on success, 0 on error
  */
 static int load_file_to_heap(const char *path, struct file_buf *out)
 {
@@ -163,11 +152,11 @@ static int load_file_to_heap(const char *path, struct file_buf *out)
     return 1;
 }
 
-/**
+/*
  * libcurl Write-Callback.
- * Schreibt ankommende Daten in den mem_writer-Puffer.
- * Bei Überlauf wird das overflow-Flag gesetzt, der Transfer aber
- * trotzdem fortgesetzt (Rückgabe von total), damit curl nicht abbricht.
+ * Writes incoming data into the mem_writer buffer.
+ * On overflow, sets the overflow flag, but
+ * continues transfer returns total, so curl does not abort.
  */
 static size_t mem_write_cb(void *ptr, size_t size, size_t nmemb, void *userdata)
 {
@@ -190,17 +179,13 @@ static size_t mem_write_cb(void *ptr, size_t size, size_t nmemb, void *userdata)
     return total;
 }
 
-/**
- * Lädt den Inhalt einer URL vollständig in den Heap.
+/*
+ * Loads the content of a URL completely into the heap.
  *
- * SSL-Verhalten:
- *   - Normalbau:   Zertifikat und Hostname werden strikt geprüft
- *   - TEST_LOCAL_SERVER: Prüfung deaktiviert
- *
- * @param url       Vollständige URL
- * @param capacity  Maximale akzeptierte Antwortgröße
- * @param out       Wird mit den empfangenen Daten befüllt
- * @return          1 bei Erfolg HTTP 200 + kein Overflow, sonst 0
+ * @param url       Full URL
+ * @param capacity  Maximum accepted response size
+ * @param out       Will be filled with the received data
+ * @return          1 on HTTP 200 + no overflow, else 0
  */
 static int fetch_url_to_heap(const char *url, size_t capacity, struct file_buf *out)
 {
@@ -228,30 +213,24 @@ static int fetch_url_to_heap(const char *url, size_t capacity, struct file_buf *
     curl_easy_setopt(curl, CURLOPT_TIMEOUT, 30L);
     curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 0L);
     curl_easy_setopt(curl, CURLOPT_USERAGENT, "ixxc-test/1.0");
-    #ifdef TEST_LOCAL_SERVER
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
-    #else
-    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
-    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 2L);
-    curl_easy_setopt(curl, CURLOPT_PROTOCOLS, CURLPROTO_HTTPS);
-    #endif
     CURLcode res = curl_easy_perform(curl);
     long http_code = 0;
     curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
     curl_easy_cleanup(curl);
     if (res != CURLE_OK) {
-        fprintf(stderr, "curl fehlgeschlagen für %s: %s\n", url, curl_easy_strerror(res));
+        fprintf(stderr, "curl error for %s: %s\n", url, curl_easy_strerror(res));
         free(buf);
         return 0;
     }
     if (http_code != 200) {
-        fprintf(stderr, "HTTP-Fehler für %s: Status %ld\n", url, http_code);
+        fprintf(stderr, "HTTP-error for %s: Status %ld\n", url, http_code);
         free(buf);
         return 0;
     }
     if (mw.overflow) {
-        fprintf(stderr, "Puffer zu klein für %s (cap=%zu)\n", url, capacity);
+        fprintf(stderr, "buffer to small %s (cap=%zu)\n", url, capacity);
         free(buf);
         return 0;
     }
@@ -261,13 +240,6 @@ static int fetch_url_to_heap(const char *url, size_t capacity, struct file_buf *
     return 1;
 }
 
-/**
- * Vergleicht zwei Speicherbereiche per XOR.
- * Die Bereiche gelten als identisch, wenn alle XOR-Ergebnisse 0 sind
- * und beide die gleiche Länge besitzen.
- *
- * @return  1 wenn identisch, 0 wenn unterschiedlich
- */
 static int xor_equal(const uint8_t *a, size_t a_len, const uint8_t *b, size_t b_len)
 {
     if (a_len != b_len) {
@@ -283,12 +255,13 @@ static int xor_equal(const uint8_t *a, size_t a_len, const uint8_t *b, size_t b_
     return (acc == 0);
 }
 
-/**
- * Prüft, ob alle in IXXC_ENDPOINTS hinterlegten Quelldateien
- * auf dem lokalen Dateisystem existieren und lesbar sind.
+/*
+ * Checks if all source files listed in IXXC_ENDPOINTS
+ * exist and are readable on the local filesystem.
  *
- * @param missing_count  Wird mit der Anzahl fehlender Dateien gefüllt darf NULL sein
- * @return               Anzahl der fehlenden Dateien alles vorhanden: 0
+ * @param missing_count  Will be filled with the count of missing files
+ * @return               Number of missing files
+ *                       0 if all present
  */
 static int check_all_local_files(size_t *missing_count)
 {
@@ -312,25 +285,25 @@ static int check_all_local_files(size_t *missing_count)
     return missing;
 }
 
-/**
- * Ablauf:
- *  1. Prüfen, ob alle lokalen Quelldateien vorhanden sind
- *  2. Alle lokalen Dateien vollständig in den Heap laden
- *  3. Alle Endpunkte vom Server fetchen und ebenfalls im Heap halten
- *  4. Jeden lokalen Puffer per XOR mit dem Remote-Puffer vergleichen
- *  5. Ergebnis farbig ausgeben und Aufräumen
+/*
+ * Procedure:
+ *  1. Check whether all local source files exist
+ *  2. Load all local files completely into the heap
+ *  3. Fetch all endpoints from the server and hold them in the heap as well
+ *  4. Compare each local buffer with the remote buffer via XOR
+ *  5. Output result in color and cleanup
  */
 int main(void)
 {
-    printf("starte test\n");
+    printf("start test\n");
     size_t missing = 0;
     if (check_all_local_files(&missing) > 0) {
-        fprintf(stderr, "Es fehlen %zu lokale Dateien. Abbruch.\n", missing);
+        fprintf(stderr, "%zu local files are missing. Aborting.\n", missing);
         return 1;
     }
     size_t n = IXXC_ENDPOINTS_COUNT;
     if (n == 0) {
-        fprintf(stderr, "Keine Endpunkte vorhanden.\n");
+        fprintf(stderr, "No endpoints available.\n");
         return 1;
     }
     struct file_buf *local_files  = calloc(n, sizeof(struct file_buf));
@@ -340,7 +313,7 @@ int main(void)
         perror("calloc");
         return 1;
     }
-    printf("\nLade lokale Dateien...\n");
+    printf("\nLoading local files...\n");
     for (size_t i = 0; i < n; ++i) {
         const char *path = IXXC_ENDPOINTS[i].source_file_path;
         char ep_path[0x1000];
@@ -352,14 +325,14 @@ int main(void)
         }
         names[i] = strdup(name);
         if (!load_file_to_heap(path, &local_files[i])) {
-            fprintf(stderr, "Konnte lokale Datei nicht laden: %s\n", path);
+            fprintf(stderr, "Could not load local file: %s\n", path);
             local_files[i].data = NULL;
             local_files[i].len  = 0;
         } else {
             printf("  lokal  %-40s  %zu Bytes\n", name, local_files[i].len);
         }
     }
-    printf("\nFetche vom Server...\n");
+    printf("\nFetch from server...\n");
     curl_global_init(CURL_GLOBAL_DEFAULT);
     for (size_t i = 0; i < n; ++i) {
         char ep_path[0x1000];
@@ -372,7 +345,7 @@ int main(void)
         }
         printf("  fetch  %s\n", url);
         if (!fetch_url_to_heap(url, cap, &remote_files[i])) {
-            fprintf(stderr, "  Fehler beim Fetch von %s\n", url);
+            fprintf(stderr, "  Error fetch from %s\n", url);
             remote_files[i].data = NULL;
             remote_files[i].len  = 0;
         } else {
@@ -380,7 +353,7 @@ int main(void)
         }
     }
     curl_global_cleanup();
-    printf("\nErgebnis der XOR-Vergleiche:\n");
+    printf("\nXOR-Comparison results:\n");
     int mismatches = 0;
     for (size_t i = 0; i < n; ++i) {
         const char *name = names[i] ? names[i] : "?";
@@ -405,6 +378,6 @@ int main(void)
     free(local_files);
     free(remote_files);
     free(names);
-    printf("\nfinish test  -  %d mismatch(es)\n", mismatches);
+    printf("\nfinish test: %d mismatch(es)\n", mismatches);
     return mismatches > 0 ? 1 : 0;
 }

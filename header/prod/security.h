@@ -1,4 +1,5 @@
 #pragma once
+
 #include <stddef.h>
 
 int constant_time_compare(const char *input, size_t input_len, const char *compare_to);

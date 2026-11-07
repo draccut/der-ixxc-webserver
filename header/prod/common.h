@@ -30,7 +30,6 @@
 #include "../../build/generated/header_data.h"
 
 #define USE_HTTP
-//#define USE_PRODUCTION_MODE
 #define USE_ONLY_LOCALHOST
 
 #ifdef USE_HTTP
@@ -46,11 +45,7 @@
 #define CERT_PATH "/etc/letsencrypt/live/ixxc.de/fullchain.pem"
 #define KEY_PATH  "/etc/letsencrypt/live/ixxc.de/privkey.pem"
 
-#ifndef USE_PRODUCTION_MODE
-    #define LOG_FILE_MACRO "my_server_access.log"
-#else
-    #define LOG_FILE_MACRO "/var/log/ixxc_server.log"
-#endif
+#define LOG_FILE_MACRO "my_server_access.log"
 
 #define DROP_USER              "ixxc_server"
 #define MAX_READ               0xFFF

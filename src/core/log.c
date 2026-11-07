@@ -230,7 +230,7 @@ void logger_loop_ixxc(void)
                     p += w;
                 }
                 if (write(log_fd, "\n", 1) != 1) {
-                    /* absichtlich ignoriert wir sind im Shutdown */
+                    /* ignore because shutdown */
                 }
             }
             atomic_store(&shared_log->read_index, r_idx + 1);

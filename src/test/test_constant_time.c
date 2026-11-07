@@ -17,9 +17,6 @@ uint64_t get_time_ns(void)
     return (uint64_t)ts.tv_sec * 1000000000ULL + ts.tv_nsec;
 }
 
-/**
- * ixxc_init_endpoints();          sortiert + ruft scale_up_endpoint_buffer() auf
- */
 int main(void)
 {
     printf("Initialisiere Endpunkte ...\n");

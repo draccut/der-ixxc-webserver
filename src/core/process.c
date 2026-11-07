@@ -35,8 +35,8 @@ void drop_privileges_and_set_name(const char *user, const char *proc_name)
         _exit(EXIT_FAILURE);
     }
     if (pw->pw_shell != NULL && strstr(pw->pw_shell, "sh") != NULL && strstr(pw->pw_shell, "nologin") == NULL && strcmp(pw->pw_shell, "/bin/false") != 0) {
-        fprintf(stderr, "\n[FEHLER] Sicherheitsrisiko: Der Benutzer %s hat eine aktive Login-Shell (%s)!\n", user, pw->pw_shell);
-        fprintf(stderr, "Bitte sperren Sie die Shell dieses Benutzers mit folgendem Befehl:\n\n");
+        fprintf(stderr, "\n[ERROR] Security risk: The user %s has an active login shell (%s)!\n", user, pw->pw_shell);
+        fprintf(stderr, "Please lock this user's shell with the following command:\n\n");
         fprintf(stderr, "usermod -s /usr/sbin/nologin %s\n\n", user);
         _exit(EXIT_FAILURE);
     }
@@ -231,5 +231,3 @@ int parent_supervise_and_wait_ixxc(int sfd, pid_t logger_pid
     printf("[ixxc_server] alle Ressourcen frei. Ende.\n");
     return 0;
 }
-
-

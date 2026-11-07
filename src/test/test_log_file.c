@@ -3,19 +3,19 @@
 #include <string.h>
 #include <stdint.h>
 
-/**
- * Prüft das Logfile gemäß der Logging-Test-Bedingung:
+/*
+ * Checks the log file according to the logging test condition:
  *
- * - Datei komplett einlesen
- * - Zeile für Zeile verarbeiten
- * - Nach jedem 0x0A den Pointer um genau 42 Zeichen weiter setzen
- * - An dieser Stelle müssen die nächsten 4 Zeichen "GET " sein
- * - Danach bis zum nächsten 0x0A laufen und den gleichen Check wiederholen
+ * - Read the entire file
+ * - Process line by line
+ * - After each 0x0A (newline), move the pointer forward
+ * - At this position, the next 4 characters must be "GET "
+ * - Then continue to the next 0x0A and repeat the check
  *
- * Rückgabe:
- *   1   ->  Test erfolgreich (alle Zeilen erfüllen die Bedingung)
- *   0   ->  Test fehlgeschlagen
- *  -1   ->  Fehler beim Öffnen/Lesen der Datei
+ * Return values:
+ *   1   ->  Test successful: all lines satisfy the condition
+ *   0   ->  Test failed
+ *  -1   ->  Error opening/reading the file
  */
 int check_logging_success(const char *logfile_path)
 {
