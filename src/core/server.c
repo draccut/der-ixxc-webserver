@@ -32,7 +32,7 @@ int main(void)
         return 1;
     }
     printf("Server gestartet %s:%d (%s)\n",
-           USE_SSL ? "https://ixxc.de" : "http://127.0.0.1",
+           USE_SSL ? "https://" DOMAIN_WEBPAGE : "http://127.0.0.1",
            PORT,
            USE_SSL ? "HTTPS" : "HTTP");
     if (prepare_logging_subsystem_ixxc() != 0) {

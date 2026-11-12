@@ -53,6 +53,7 @@ SERVER_OBJS := \
         $(BUILD_DIR)/log.o \
         $(BUILD_DIR)/process.o \
         $(BUILD_DIR)/security.o \
+        $(BUILD_DIR)/http_parser.o \
         $(BUILD_DIR)/connection.o \
         $(BUILD_DIR)/socket.o \
         $(BUILD_DIR)/header_data.o \
@@ -126,6 +127,9 @@ $(BUILD_DIR)/process.o:             $(SRC_DIR)/process.c              $(GENERATE
 $(BUILD_DIR)/security.o:            $(SRC_DIR)/security.c             $(GENERATED) | dirs
 	$(CC) $(CFLAGS) -c $< -o $@
 
+$(BUILD_DIR)/http_parser.o:         $(SRC_DIR)/http_parser.c          $(GENERATED) | dirs
+	$(CC) $(CFLAGS) -c $< -o $@
+
 $(BUILD_DIR)/connection.o:          $(SRC_DIR)/connection.c           $(GENERATED) | dirs
 	$(CC) $(CFLAGS) -c $< -o $@
 
@@ -147,13 +151,17 @@ clean:
 # -----------------------------------------------------------------------------
 # TESTS
 # -----------------------------------------------------------------------------
-TEST_DIR        := src/test
-TEST_BIN        := $(BIN_DIR)/test_ixxc
-TEST_CONST_BIN  := $(BIN_DIR)/test_constant_time
-TEST_MTH_BIN    := $(BIN_DIR)/test_meme_types_handler
-TEST_RING_BUF   := $(BIN_DIR)/test_ring_buffer
-TEST_LOG_BIN    := $(BIN_DIR)/test_log_file
-TEST_CFLAGS     := $(TOOL_CFLAGS) -DUSE_TEST_ENDPOINTS
+TEST_DIR         := src/test
+TEST_BIN         := $(BIN_DIR)/test_ixxc
+TEST_RING_BUF    := $(BIN_DIR)/test_ring_buffer
+TEST_CONST_BIN   := $(BIN_DIR)/test_constant_time
+TEST_MTH_BIN     := $(BIN_DIR)/test_meme_types_handler
+TEST_LOG_BIN     := $(BIN_DIR)/test_log_file
+TEST_HTTP_PARSER := $(BIN_DIR)/test_http_parser
+TEST_CFLAGS      := $(TOOL_CFLAGS) -DUSE_TEST_ENDPOINTS
+
+$(TEST_BIN): $(TEST_DIR)/test_ixxc.c | dirs
+	$(CC) $(TOOL_CFLAGS) $< -o $@ -lcurl -lpthread
 
 $(TEST_RING_BUF): $(TEST_DIR)/test_ring_buffer.c | dirs
 	$(CC) $(TOOL_CFLAGS) $< -o $@ -lcurl -lpthread
@@ -161,17 +169,17 @@ $(TEST_RING_BUF): $(TEST_DIR)/test_ring_buffer.c | dirs
 $(TEST_CONST_BIN): $(TEST_DIR)/test_constant_time.c $(SRC_DIR)/security.c | dirs
 	$(CC) $(TEST_CFLAGS) $^ -o $@
 
-$(TEST_BIN): $(TEST_DIR)/test_ixxc.c | dirs
-	$(CC) $(TOOL_CFLAGS) $< -o $@ -lcurl -lpthread
-
 $(TEST_MTH_BIN): $(TEST_DIR)/test_meme_types.c | dirs
 	$(CC) $(TEST_CFLAGS) $< -o $@
 
 $(TEST_LOG_BIN): $(TEST_DIR)/test_log_file.c | dirs
 	$(CC) $(TOOL_CFLAGS) $< -o $@
 
+$(TEST_HTTP_PARSER): $(TEST_DIR)/test_http_parser.c $(SRC_DIR)/http_parser.c | dirs
+	$(CC) $(TOOL_CFLAGS) $< -o $@
+
 .PHONY: test
-test: $(TEST_CONST_BIN) $(TEST_BIN) $(TEST_MTH_BIN) $(TEST_RING_BUF) $(TEST_LOG_BIN)
+test: $(TEST_CONST_BIN) $(TEST_BIN) $(TEST_MTH_BIN) $(TEST_RING_BUF) $(TEST_LOG_BIN) $(TEST_HTTP_PARSER)
 	@echo "Running ring buffer test..."
 	@$(TEST_RING_BUF)
 	@echo "Running test_meme_types_handler..."
@@ -182,4 +190,6 @@ test: $(TEST_CONST_BIN) $(TEST_BIN) $(TEST_MTH_BIN) $(TEST_RING_BUF) $(TEST_LOG_
 	@$(TEST_BIN)
 	@echo "Running test_log_file..."
 	@$(TEST_LOG_BIN)
+	@echo "Running test_http_parser..."
+	@$(TEST_HTTP_PARSER)
 	@echo "All tests finished."

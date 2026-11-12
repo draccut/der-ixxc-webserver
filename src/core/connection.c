@@ -3,6 +3,7 @@
 #include "../../header/prod/security.h"
 #include "../../header/prod/log.h"
 #include "../../header/prod/meme_types_handler.h"
+#include "../../header/prod/http_parser.h"
 
 char   *attr_html_mem[NR_OF_ENDPOINTS];
 size_t  attr_html_len[NR_OF_ENDPOINTS];
@@ -126,43 +127,6 @@ void send_endpoint_plain(int fd, size_t idx)
 
 #endif
 
-/*
- * Finds the length of the request path up to the second space
- * Used as input_len for constant-time comparison.
- *
- * @param buf  Request buffer
- * @param len  Length of the buffer
- * @return     Length of the path or 0 on error
- */
-static size_t find_endpoint_length(const char *buf, size_t len)
-{
-    if (!buf || len == 0) {
-        return 0;
-    }
-    size_t i = 0;
-    while (i < len && buf[i] != ' ' && buf[i] != '\r' && buf[i] != '\n') {
-        ++i;
-    }
-    if (i >= len || buf[i] != ' ') {
-        return 0;
-    }
-    ++i;
-    size_t path_start = i;
-    while (i < len && buf[i] != ' ' && buf[i] != '\r' && buf[i] != '\n') {
-        ++i;
-    }
-    if (i >= len || buf[i] != ' ') {
-        return 0;
-    }
-    if (i - path_start == 1 && buf[path_start] == '/') {
-        return i;
-    }
-    if (buf[i - 1] == '/') {
-        return i - 1;
-    }
-    return i;
-}
-
 void handle_connection_fd(int worker_index, int cfd, struct sockaddr_in *caddr
 #if USE_SSL
 , SSL_CTX *ctx
@@ -208,7 +172,7 @@ void handle_connection_fd(int worker_index, int cfd, struct sockaddr_in *caddr
     int is_http = (strstr(buf, "HTTP/1.1") != NULL || strstr(buf, "HTTP/1.0") != NULL);
     size_t index_endpoint;
     for (index_endpoint = 0; index_endpoint < IXXC_ENDPOINTS_COUNT; ++index_endpoint) {
-        size_t end_buf_index = find_endpoint_length(buf, MAX_READ);
+        size_t end_buf_index = find_endpoint_length(buf);
         if (is_http && constant_time_compare(buf, end_buf_index, IXXC_ENDPOINTS[index_endpoint].endpoint) == 0) {
             #if USE_SSL
             send_endpoint_ssl(ssl, index_endpoint);

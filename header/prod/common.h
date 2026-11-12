@@ -42,8 +42,10 @@
     #include <openssl/err.h>
 #endif
 
-#define CERT_PATH "/etc/letsencrypt/live/ixxc.de/fullchain.pem"
-#define KEY_PATH  "/etc/letsencrypt/live/ixxc.de/privkey.pem"
+#define DOMAIN_WEBPAGE "domain.de"
+
+#define CERT_PATH "/etc/letsencrypt/live/" DOMAIN_WEBPAGE "/fullchain.pem"
+#define KEY_PATH  "/etc/letsencrypt/live/" DOMAIN_WEBPAGE "/privkey.pem"
 
 #define LOG_FILE_MACRO "my_server_access.log"
 
